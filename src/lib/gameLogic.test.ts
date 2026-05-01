@@ -94,4 +94,18 @@ describe('gameLogic', () => {
     expect(stats.currentStreak).toEqual({ type: 'loss', count: 1 });
     expect(stats.bestWinStreak).toBe(2);
   });
+
+  it('treats a lost game stake as negative in summaries', () => {
+    const stats = summarizeStats([
+      game({
+        playedAt: '2026-04-22T18:00:00.000Z',
+        winnerTeam: 'B',
+        finalTotals: { A: 11, B: 15 },
+        stakeAmount: -6,
+      }),
+    ]);
+
+    expect(stats.money.total).toBe(-6);
+    expect(stats.money.biggestLoss).toBe(-6);
+  });
 });

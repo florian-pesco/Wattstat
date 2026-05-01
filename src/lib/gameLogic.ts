@@ -91,6 +91,14 @@ export function buildGameName(game: Game, team: TeamId): string {
   return `${selected.players[0]} & ${selected.players[1]}`;
 }
 
+export function getSignedStakeAmount(game: Game): number | undefined {
+  if (typeof game.stakeAmount !== 'number') {
+    return undefined;
+  }
+
+  return game.winnerTeam === TEAM_A ? Math.abs(game.stakeAmount) : -Math.abs(game.stakeAmount);
+}
+
 export function summarizeStats(games: Game[]): StatsSummary {
   const sortedGames = [...games].sort(
     (left, right) => new Date(right.playedAt).getTime() - new Date(left.playedAt).getTime(),
@@ -102,7 +110,7 @@ export function summarizeStats(games: Game[]): StatsSummary {
   const totalPointsScored = sortedGames.reduce((sum, game) => sum + game.finalTotals.A, 0);
   const totalPointsConceded = sortedGames.reduce((sum, game) => sum + game.finalTotals.B, 0);
   const stakeValues = sortedGames
-    .map((game) => game.stakeAmount)
+    .map(getSignedStakeAmount)
     .filter((stake): stake is number => typeof stake === 'number');
 
   const totalMoney = stakeValues.reduce((sum, stake) => sum + stake, 0);

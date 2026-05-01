@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { TEAM_A, summarizeStats } from '../lib/gameLogic';
+import { getSignedStakeAmount, TEAM_A, summarizeStats } from '../lib/gameLogic';
 import { formatDate, formatDecimal, formatMoney } from '../lib/format';
 import type { Game } from '../types';
 
@@ -29,7 +29,7 @@ export function StatisticsPage({ games }: StatisticsPageProps) {
     <section className="page stack">
       <div className="section-heading">
         <h1>Statistik</h1>
-        <p>Alle gespeicherten Spiele werden hier für dich zusammengefasst.</p>
+        <p>Alle gespeicherten Spiele werden hier fuer dich zusammengefasst.</p>
       </div>
 
       <div className="stat-grid">
@@ -56,7 +56,7 @@ export function StatisticsPage({ games }: StatisticsPageProps) {
         <StatCard label="Gesamt" value={formatMoney(stats.money.total)} accent />
         <StatCard label="Ø pro Spiel" value={formatMoney(stats.money.average)} />
         <StatCard label="Bester Gewinn" value={formatMoney(stats.money.biggestWin)} />
-        <StatCard label="Größter Verlust" value={formatMoney(stats.money.biggestLoss)} />
+        <StatCard label="Groesster Verlust" value={formatMoney(stats.money.biggestLoss)} />
       </div>
 
       <div className="panel stack">
@@ -78,25 +78,29 @@ export function StatisticsPage({ games }: StatisticsPageProps) {
         </div>
 
         {recentGames.length === 0 ? (
-          <p className="empty-copy">Noch keine gespeicherten Spiele für diese Ansicht.</p>
+          <p className="empty-copy">Noch keine gespeicherten Spiele fuer diese Ansicht.</p>
         ) : (
           <div className="recent-list">
-            {recentGames.map((game) => (
-              <div key={game.id} className="recent-row">
-                <div>
-                  <strong>{formatDate(game.playedAt)}</strong>
-                  <span>
-                    {game.teamA.players[0]} &amp; {game.teamA.players[1]} gegen {game.teamB.players[0]} &amp; {game.teamB.players[1]}
-                  </span>
+            {recentGames.map((game) => {
+              const signedStake = getSignedStakeAmount(game);
+
+              return (
+                <div key={game.id} className="recent-row">
+                  <div>
+                    <strong>{formatDate(game.playedAt)}</strong>
+                    <span>
+                      {game.teamA.players[0]} &amp; {game.teamA.players[1]} gegen {game.teamB.players[0]} &amp; {game.teamB.players[1]}
+                    </span>
+                  </div>
+                  <div className="recent-score">
+                    <strong>
+                      {game.finalTotals.A}:{game.finalTotals.B}
+                    </strong>
+                    <span>{typeof signedStake === 'number' ? formatMoney(signedStake) : 'ohne Einsatz'}</span>
+                  </div>
                 </div>
-                <div className="recent-score">
-                  <strong>
-                    {game.finalTotals.A}:{game.finalTotals.B}
-                  </strong>
-                  <span>{typeof game.stakeAmount === 'number' ? formatMoney(game.stakeAmount) : 'ohne Einsatz'}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

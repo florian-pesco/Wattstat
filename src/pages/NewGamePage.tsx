@@ -91,13 +91,20 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
       return;
     }
 
-    const stakeAmount =
+    const rawStakeAmount =
       draft.stakeAmountText.trim() === '' ? undefined : Number.parseFloat(draft.stakeAmountText.replace(',', '.'));
 
-    if (draft.stakeAmountText.trim() !== '' && Number.isNaN(stakeAmount)) {
+    if (draft.stakeAmountText.trim() !== '' && Number.isNaN(rawStakeAmount)) {
       setError('Der Einsatz muss eine Zahl sein, z. B. 5 oder -2.50.');
       return;
     }
+
+    const stakeAmount =
+      typeof rawStakeAmount === 'number'
+        ? winner === TEAM_A
+          ? Math.abs(rawStakeAmount)
+          : -Math.abs(rawStakeAmount)
+        : undefined;
 
     const game: Game = {
       id: crypto.randomUUID(),

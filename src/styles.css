@@ -483,6 +483,96 @@ button {
   text-align: center;
 }
 
+@media (max-width: 719px) {
+  .app-shell {
+    width: min(100%, calc(100% - 1rem));
+    padding: 0.75rem 0 2rem;
+  }
+
+  .app-header {
+    gap: 0.5rem;
+  }
+
+  .app-header h1,
+  .hero-card h1 {
+    font-size: 1.85rem;
+  }
+
+  .hero-card,
+  .panel {
+    padding: 0.9rem;
+    border-radius: 1.1rem;
+  }
+
+  .tab-nav {
+    position: sticky;
+    top: 0.5rem;
+    z-index: 10;
+    grid-template-columns: 1fr;
+    background: rgba(248, 241, 231, 0.86);
+    backdrop-filter: blur(8px);
+    padding: 0.35rem;
+    border-radius: 1rem;
+  }
+
+  .tab-link {
+    padding: 0.8rem 0.7rem;
+    font-size: 0.95rem;
+  }
+
+  .live-header,
+  .saved-game-header,
+  .saved-game-meta,
+  .recent-row,
+  .live-actions,
+  .auth-panel,
+  .auth-actions {
+    align-items: stretch;
+  }
+
+  .live-actions > *,
+  .auth-actions > *,
+  .filter-row > *,
+  .saved-game-meta > * {
+    width: 100%;
+  }
+
+  .filter-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .score-column {
+    min-height: 260px;
+  }
+
+  .round-button-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .round-button,
+  .primary-button,
+  .secondary-button,
+  .ghost-button {
+    min-height: 52px;
+  }
+
+  .score-entry,
+  .score-empty {
+    font-size: 0.95rem;
+  }
+
+  .recent-row,
+  .saved-game-meta {
+    display: grid;
+    gap: 0.45rem;
+  }
+
+  .recent-score {
+    text-align: left;
+  }
+}
+
 @media (min-width: 720px) {
   .grid.two,
   .team-setup-grid,
