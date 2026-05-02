@@ -1,10 +1,11 @@
-import type { Game, RoundEntry, StatsSummary, TargetScore, TeamId } from '../types';
+import type { Game, PlayerSeat, RoundEntry, StatsSummary, TargetScore, TeamId } from '../types';
 
 export const TEAM_A: TeamId = 'A';
 export const TEAM_B: TeamId = 'B';
 export const TARGET_SCORE_OPTIONS: TargetScore[] = [11, 15, 18];
 export const ROUND_POINT_OPTIONS = [2, 3, 4, 5] as const;
 export const PENALTY_POINT_VALUE = -2;
+export const PLAYER_SEAT_ORDER: PlayerSeat[] = ['A1', 'B1', 'A2', 'B2'];
 
 export interface GestrichenState {
   leader: TeamId;
@@ -99,6 +100,34 @@ export function getSignedStakeAmount(game: Game): number | undefined {
   return game.winnerTeam === TEAM_A ? Math.abs(game.stakeAmount) : -Math.abs(game.stakeAmount);
 }
 
+export function getRoundRoleSeats(game: Game, roundIndex: number): { schlagSeat: PlayerSeat; trumpfSeat: PlayerSeat } | null {
+  if (!game.firstRoundSchlagSeat || !game.firstRoundTrumpfSeat) {
+    return null;
+  }
+
+  return {
+    schlagSeat: rotateSeat(game.firstRoundSchlagSeat, roundIndex),
+    trumpfSeat: rotateSeat(game.firstRoundTrumpfSeat, roundIndex),
+  };
+}
+
+export function getRoleForSeat(game: Game, roundIndex: number, seat: PlayerSeat): 'schlag' | 'trumpf' | 'blind' | null {
+  const roles = getRoundRoleSeats(game, roundIndex);
+  if (!roles) {
+    return null;
+  }
+
+  if (roles.schlagSeat === seat) {
+    return 'schlag';
+  }
+
+  if (roles.trumpfSeat === seat) {
+    return 'trumpf';
+  }
+
+  return 'blind';
+}
+
 export function summarizeStats(games: Game[]): StatsSummary {
   const sortedGames = [...games].sort(
     (left, right) => new Date(right.playedAt).getTime() - new Date(left.playedAt).getTime(),
@@ -116,6 +145,21 @@ export function summarizeStats(games: Game[]): StatsSummary {
   const totalMoney = stakeValues.reduce((sum, stake) => sum + stake, 0);
   const biggestWin = stakeValues.length > 0 ? Math.max(...stakeValues, 0) : 0;
   const biggestLoss = stakeValues.length > 0 ? Math.min(...stakeValues, 0) : 0;
+
+  let blindRoundsTracked = 0;
+  let blindRoundsWon = 0;
+
+  for (const game of sortedGames) {
+    game.rounds.forEach((round, index) => {
+      const role = getRoleForSeat(game, index, 'A1');
+      if (role === 'blind') {
+        blindRoundsTracked += 1;
+        if (round.team === TEAM_A) {
+          blindRoundsWon += 1;
+        }
+      }
+    });
+  }
 
   const currentStreak = getCurrentStreak(sortedGames);
   const bestWinStreak = getBestWinStreak([...sortedGames].reverse());
@@ -137,8 +181,16 @@ export function summarizeStats(games: Game[]): StatsSummary {
       biggestWin,
       biggestLoss,
     },
+    blindRoundsTracked,
+    blindRoundsWon,
+    blindWinRate: blindRoundsTracked > 0 ? blindRoundsWon / blindRoundsTracked : 0,
     recentGames: sortedGames.slice(0, 10),
   };
+}
+
+function rotateSeat(seat: PlayerSeat, roundIndex: number): PlayerSeat {
+  const currentIndex = PLAYER_SEAT_ORDER.indexOf(seat);
+  return PLAYER_SEAT_ORDER[(currentIndex + roundIndex) % PLAYER_SEAT_ORDER.length];
 }
 
 function getCurrentStreak(gamesDescending: Game[]): StatsSummary['currentStreak'] {

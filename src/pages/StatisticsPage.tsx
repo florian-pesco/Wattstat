@@ -29,7 +29,7 @@ export function StatisticsPage({ games }: StatisticsPageProps) {
     <section className="page stack">
       <div className="section-heading">
         <h1>Statistik</h1>
-        <p>Alle gespeicherten Spiele werden hier fuer dich zusammengefasst.</p>
+        <p>Mit Schlag und Trumpf in Runde 1 lassen sich jetzt auch Blind-Runden auswerten.</p>
       </div>
 
       <div className="stat-grid">
@@ -50,6 +50,11 @@ export function StatisticsPage({ games }: StatisticsPageProps) {
           }
         />
         <StatCard label="Beste Siegesserie" value={String(stats.bestWinStreak)} />
+        <StatCard label="Blind-Runden" value={String(stats.blindRoundsTracked)} />
+        <StatCard
+          label="Blind-Siegquote"
+          value={stats.blindRoundsTracked > 0 ? `${Math.round(stats.blindWinRate * 100)}%` : '—'}
+        />
       </div>
 
       <div className="money-grid">

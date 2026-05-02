@@ -1,22 +1,37 @@
-import { NavLink, Route, Routes } from 'react-router-dom';
+import { NavLink, Route, Routes, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { NewGamePage } from './pages/NewGamePage';
 import { SavedGamesPage } from './pages/SavedGamesPage';
 import { StatisticsPage } from './pages/StatisticsPage';
-import { loadLocalGames, loadRemoteGames, saveLocalGames, saveRemoteGame } from './lib/gameRepository';
-import { isSupabaseConfigured, supabase, supabaseRedirectUrl } from './lib/supabase';
-import type { Game } from './types';
+import {
+  deleteRemoteGame,
+  loadLocalGames,
+  loadOrCreateRemoteProfile,
+  loadRemoteGames,
+  saveLocalGames,
+  saveRemoteGame,
+} from './lib/gameRepository';
+import { getSupabaseRedirectUrl, isSupabaseConfigured, supabase } from './lib/supabase';
+import type { Game, UserProfile } from './types';
+
+type AuthMode = 'sign-in' | 'sign-up';
 
 function App() {
-  const [games, setGames] = useState<Game[]>(() => (isSupabaseConfigured ? [] : loadLocalGames()));
+  const navigate = useNavigate();
+  const [games, setGames] = useState<Game[]>(() => loadLocalGames());
   const [session, setSession] = useState<Session | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [authLoading, setAuthLoading] = useState(isSupabaseConfigured);
   const [gamesLoading, setGamesLoading] = useState(false);
+  const [authMode, setAuthMode] = useState<AuthMode>('sign-in');
+  const [authUsername, setAuthUsername] = useState('');
   const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [editingGame, setEditingGame] = useState<Game | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -44,9 +59,8 @@ function App() {
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       setAuthLoading(false);
-      if (!nextSession) {
-        setGames([]);
-      }
+      setAuthError(null);
+      setAuthNotice(null);
     });
 
     return () => {
@@ -58,29 +72,35 @@ function App() {
   useEffect(() => {
     if (!isSupabaseConfigured) {
       saveLocalGames(games);
-    }
-  }, [games]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !session) {
       return;
     }
 
-    const currentSession = session;
-    let cancelled = false;
+    if (!session) {
+      setProfile(null);
+      setGames(loadLocalGames());
+      return;
+    }
 
-    async function fetchGames() {
+    let cancelled = false;
+    const currentSession = session;
+
+    async function fetchRemoteState() {
       setGamesLoading(true);
       setAuthError(null);
 
       try {
-        const remoteGames = await loadRemoteGames(currentSession);
+        const [remoteProfile, remoteGames] = await Promise.all([
+          loadOrCreateRemoteProfile(currentSession),
+          loadRemoteGames(currentSession),
+        ]);
+
         if (!cancelled) {
+          setProfile(remoteProfile);
           setGames(remoteGames);
         }
       } catch (error) {
         if (!cancelled) {
-          setAuthError(error instanceof Error ? error.message : 'Spiele konnten nicht geladen werden.');
+          setAuthError(error instanceof Error ? error.message : 'Daten konnten nicht geladen werden.');
         }
       } finally {
         if (!cancelled) {
@@ -89,7 +109,7 @@ function App() {
       }
     }
 
-    fetchGames();
+    fetchRemoteState();
 
     return () => {
       cancelled = true;
@@ -97,17 +117,16 @@ function App() {
   }, [session]);
 
   async function handleSaveGame(game: Game) {
-    if (!isSupabaseConfigured) {
-      setGames((current) =>
-        [game, ...current].sort(
+    if (!isSupabaseConfigured || !session) {
+      setGames((current) => {
+        const nextGames = [game, ...current.filter((currentGame) => currentGame.id !== game.id)].sort(
           (left, right) => new Date(right.playedAt).getTime() - new Date(left.playedAt).getTime(),
-        ),
-      );
+        );
+        saveLocalGames(nextGames);
+        return nextGames;
+      });
+      setEditingGame(null);
       return;
-    }
-
-    if (!session) {
-      throw new Error('Bitte zuerst anmelden.');
     }
 
     const savedGame = await saveRemoteGame(session, game);
@@ -116,9 +135,35 @@ function App() {
         (left, right) => new Date(right.playedAt).getTime() - new Date(left.playedAt).getTime(),
       ),
     );
+    setEditingGame(null);
   }
 
-  async function handleMagicLink(event: FormEvent<HTMLFormElement>) {
+  async function handleDeleteGame(gameId: string) {
+    const confirmed = window.confirm('Dieses Spiel wirklich loeschen?');
+    if (!confirmed) {
+      return;
+    }
+
+    if (!isSupabaseConfigured || !session) {
+      const nextGames = games.filter((game) => game.id !== gameId);
+      setGames(nextGames);
+      saveLocalGames(nextGames);
+    } else {
+      await deleteRemoteGame(gameId);
+      setGames((current) => current.filter((game) => game.id !== gameId));
+    }
+
+    if (editingGame?.id === gameId) {
+      setEditingGame(null);
+    }
+  }
+
+  function handleEditGame(game: Game) {
+    setEditingGame(game);
+    navigate('/');
+  }
+
+  async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase) {
       return;
@@ -127,11 +172,41 @@ function App() {
     setAuthError(null);
     setAuthNotice(null);
 
-    const { error } = await supabase.auth.signInWithOtp({
+    if (authMode === 'sign-up') {
+      if (authUsername.trim().length < 3) {
+        setAuthError('Der Benutzername muss mindestens 3 Zeichen lang sein.');
+        return;
+      }
+
+      const { data, error } = await supabase.auth.signUp({
+        email: authEmail,
+        password: authPassword,
+        options: {
+          emailRedirectTo: getSupabaseRedirectUrl(),
+          data: {
+            username: authUsername.trim(),
+          },
+        },
+      });
+
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+
+      if (data.session) {
+        setAuthNotice('Konto erstellt. Du bist jetzt angemeldet.');
+      } else {
+        setAuthNotice('Konto erstellt. Bitte bestaetige zuerst deine E-Mail und melde dich dann an.');
+        setAuthMode('sign-in');
+      }
+
+      return;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({
       email: authEmail,
-      options: {
-        emailRedirectTo: supabaseRedirectUrl,
-      },
+      password: authPassword,
     });
 
     if (error) {
@@ -139,7 +214,7 @@ function App() {
       return;
     }
 
-    setAuthNotice('Magic Link verschickt. Bitte in deinem Postfach oeffnen.');
+    setAuthNotice('Erfolgreich angemeldet.');
   }
 
   async function handleSignOut() {
@@ -150,7 +225,16 @@ function App() {
     const { error } = await supabase.auth.signOut();
     if (error) {
       setAuthError(error.message);
+      return;
     }
+
+    setProfile(null);
+    setEditingGame(null);
+    setGames(loadLocalGames());
+  }
+
+  function handleCancelEdit() {
+    setEditingGame(null);
   }
 
   return (
@@ -161,27 +245,27 @@ function App() {
           <h1>Watten fuer den Tisch, die Liste und die Kasse.</h1>
         </div>
         <p className="header-copy">
-          {isSupabaseConfigured
-            ? 'Mit Supabase Login und Sync vorbereitet, damit deine Spiele auch auf Vercel bestehen bleiben.'
-            : 'Lokal gespeichert, schnell mitschreibbar und auf Suedtiroler Wattblock-Logik aufgebaut.'}
+          {session
+            ? 'Deine Spiele werden mit deinem Konto synchronisiert und bleiben auf allen Geraeten verfuegbar.'
+            : 'Du kannst auch ohne Login lokal spielen. Mit Konto werden Spiele und Statistiken synchronisiert.'}
         </p>
       </header>
 
       {isSupabaseConfigured ? (
         <section className="panel auth-panel">
           <div className="auth-panel-copy">
-            <p className="eyebrow">Supabase Login</p>
-            {session ? (
+            <p className="eyebrow">Konto</p>
+            {session && profile ? (
               <>
-                <h2>Angemeldet als {session.user.email}</h2>
-                <p>Neue Spiele werden jetzt direkt in Supabase gespeichert und auf Vercel synchron geladen.</p>
+                <h2>Angemeldet als {profile.username}</h2>
+                <p>{profile.email}</p>
               </>
             ) : (
               <>
-                <h2>Mit Magic Link anmelden</h2>
+                <h2>{authMode === 'sign-in' ? 'Einloggen' : 'Konto erstellen'}</h2>
                 <p>
-                  Jeder Benutzer bekommt seine eigenen Spiele. Fuer den ersten Rollout reicht ein einfacher Link per
-                  E-Mail.
+                  Auf dem Handy ist das jetzt ein normales Login mit E-Mail und Passwort. Gastmodus bleibt trotzdem
+                  moeglich.
                 </p>
               </>
             )}
@@ -194,7 +278,37 @@ function App() {
               </button>
             </div>
           ) : (
-            <form className="auth-form" onSubmit={handleMagicLink}>
+            <form className="auth-form" onSubmit={handleAuthSubmit}>
+              <div className="auth-mode-switch">
+                <button
+                  className={authMode === 'sign-in' ? 'filter-button active' : 'filter-button'}
+                  type="button"
+                  onClick={() => setAuthMode('sign-in')}
+                >
+                  Login
+                </button>
+                <button
+                  className={authMode === 'sign-up' ? 'filter-button active' : 'filter-button'}
+                  type="button"
+                  onClick={() => setAuthMode('sign-up')}
+                >
+                  Sign up
+                </button>
+              </div>
+
+              {authMode === 'sign-up' ? (
+                <label className="field">
+                  <span>Benutzername</span>
+                  <input
+                    type="text"
+                    placeholder="z. B. florian"
+                    value={authUsername}
+                    onChange={(event) => setAuthUsername(event.target.value)}
+                    required
+                  />
+                </label>
+              ) : null}
+
               <label className="field">
                 <span>E-Mail</span>
                 <input
@@ -205,8 +319,20 @@ function App() {
                   required
                 />
               </label>
+
+              <label className="field">
+                <span>Passwort</span>
+                <input
+                  type="password"
+                  placeholder="Mindestens 6 Zeichen"
+                  value={authPassword}
+                  onChange={(event) => setAuthPassword(event.target.value)}
+                  required
+                />
+              </label>
+
               <button className="primary-button" type="submit" disabled={authLoading}>
-                {authLoading ? 'Prueft Session...' : 'Magic Link senden'}
+                {authLoading ? 'Prueft Session...' : authMode === 'sign-in' ? 'Einloggen' : 'Konto erstellen'}
               </button>
             </form>
           )}
@@ -218,7 +344,7 @@ function App() {
 
       {gamesLoading ? (
         <section className="panel">
-          <p>Spiele werden aus Supabase geladen...</p>
+          <p>Spiele werden geladen...</p>
         </section>
       ) : null}
 
@@ -236,8 +362,22 @@ function App() {
 
       <main>
         <Routes>
-          <Route path="/" element={<NewGamePage onSaveGame={handleSaveGame} saveDisabled={isSupabaseConfigured && !session} />} />
-          <Route path="/spiele" element={<SavedGamesPage games={games} />} />
+          <Route
+            path="/"
+            element={
+              <NewGamePage
+                onSaveGame={handleSaveGame}
+                initialGame={editingGame}
+                currentUsername={profile?.username ?? null}
+                currentUserId={profile?.userId ?? null}
+                onCancelEdit={handleCancelEdit}
+              />
+            }
+          />
+          <Route
+            path="/spiele"
+            element={<SavedGamesPage games={games} onEditGame={handleEditGame} onDeleteGame={handleDeleteGame} />}
+          />
           <Route path="/statistik" element={<StatisticsPage games={games} />} />
         </Routes>
       </main>

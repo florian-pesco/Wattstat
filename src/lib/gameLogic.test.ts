@@ -9,6 +9,7 @@ function round(team: 'A' | 'B', pointsAwarded: number): RoundEntry {
     pointsAwarded,
     type: 'normal',
     createdAt: new Date().toISOString(),
+    orderIndex: 1,
   };
 }
 
@@ -19,7 +20,10 @@ function game(overrides: Partial<Game>): Game {
     targetScore: 15,
     teamA: { id: 'A', name: 'Dein Team', players: ['Anna', 'Lukas'] },
     teamB: { id: 'B', name: 'Gegner', players: ['Eva', 'Paul'] },
-    rounds: [round('A', 3), round('A', 2), round('A', 4), round('A', 6)],
+    rounds: [round('A', 3), round('A', 2), round('A', 4), round('A', 6)].map((entry, index) => ({
+      ...entry,
+      orderIndex: index + 1,
+    })),
     finalTotals: { A: 15, B: 10 },
     winnerTeam: 'A',
     ...overrides,
@@ -107,5 +111,24 @@ describe('gameLogic', () => {
 
     expect(stats.money.total).toBe(-6);
     expect(stats.money.biggestLoss).toBe(-6);
+  });
+
+  it('tracks blind round win rate when first round roles are known', () => {
+    const stats = summarizeStats([
+      game({
+        firstRoundSchlagSeat: 'B1',
+        firstRoundTrumpfSeat: 'A2',
+        rounds: [
+          { ...round('A', 2), orderIndex: 1 },
+          { ...round('B', 2), orderIndex: 2 },
+          { ...round('A', 2), orderIndex: 3 },
+          { ...round('A', 2), orderIndex: 4 },
+        ],
+      }),
+    ]);
+
+    expect(stats.blindRoundsTracked).toBe(2);
+    expect(stats.blindRoundsWon).toBe(1);
+    expect(stats.blindWinRate).toBe(0.5);
   });
 });

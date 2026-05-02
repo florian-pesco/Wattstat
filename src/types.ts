@@ -1,6 +1,13 @@
 export type TeamId = 'A' | 'B';
 export type RoundType = 'normal' | 'penalty';
 export type TargetScore = 11 | 15 | 18;
+export type PlayerSeat = 'A1' | 'B1' | 'A2' | 'B2';
+
+export interface UserProfile {
+  userId: string;
+  username: string;
+  email: string;
+}
 
 export interface RoundEntry {
   id: string;
@@ -8,6 +15,7 @@ export interface RoundEntry {
   pointsAwarded: number;
   type: RoundType;
   createdAt: string;
+  orderIndex: number;
 }
 
 export interface Team {
@@ -31,15 +39,21 @@ export interface Game {
   winnerTeam: TeamId;
   stakeAmount?: number;
   note?: string;
+  teamAPlayer1ProfileId?: string;
+  firstRoundSchlagSeat?: PlayerSeat;
+  firstRoundTrumpfSeat?: PlayerSeat;
 }
 
 export interface LiveGameDraft {
+  gameId: string | null;
   targetScore: TargetScore;
   teamAPlayers: [string, string];
   teamBPlayers: [string, string];
   stakeAmountText: string;
   note: string;
   rounds: RoundEntry[];
+  firstRoundSchlagSeat: PlayerSeat | '';
+  firstRoundTrumpfSeat: PlayerSeat | '';
 }
 
 export interface MoneyResultSummary {
@@ -64,5 +78,8 @@ export interface StatsSummary {
   };
   bestWinStreak: number;
   money: MoneyResultSummary;
+  blindRoundsTracked: number;
+  blindRoundsWon: number;
+  blindWinRate: number;
   recentGames: Game[];
 }

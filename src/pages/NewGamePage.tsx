@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   getGestrichenState,
   PENALTY_POINT_VALUE,
+  PLAYER_SEAT_ORDER,
   ROUND_POINT_OPTIONS,
   TARGET_SCORE_OPTIONS,
   TEAM_A,
@@ -10,27 +11,69 @@ import {
   calculateTotals,
   getWinner,
 } from '../lib/gameLogic';
-import type { Game, LiveGameDraft, RoundEntry, RoundType, TeamId } from '../types';
+import type { Game, LiveGameDraft, PlayerSeat, RoundEntry, RoundType, TeamId } from '../types';
 
 interface NewGamePageProps {
   onSaveGame: (game: Game) => Promise<void>;
-  saveDisabled?: boolean;
+  initialGame?: Game | null;
+  currentUsername?: string | null;
+  currentUserId?: string | null;
+  onCancelEdit?: () => void;
 }
 
-const initialDraft: LiveGameDraft = {
-  targetScore: 15,
-  teamAPlayers: ['', ''],
-  teamBPlayers: ['', ''],
-  stakeAmountText: '',
-  note: '',
-  rounds: [],
-};
+function createInitialDraft(currentUsername: string | null): LiveGameDraft {
+  return {
+    gameId: null,
+    targetScore: 15,
+    teamAPlayers: [currentUsername ?? '', ''],
+    teamBPlayers: ['', ''],
+    stakeAmountText: '',
+    note: '',
+    rounds: [],
+    firstRoundSchlagSeat: '',
+    firstRoundTrumpfSeat: '',
+  };
+}
 
-export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePageProps) {
-  const [draft, setDraft] = useState<LiveGameDraft>(initialDraft);
+function createDraftFromGame(game: Game, currentUsername: string | null): LiveGameDraft {
+  return {
+    gameId: game.id,
+    targetScore: game.targetScore,
+    teamAPlayers: [currentUsername ?? game.teamA.players[0], game.teamA.players[1]],
+    teamBPlayers: [...game.teamB.players] as [string, string],
+    stakeAmountText: typeof game.stakeAmount === 'number' ? String(Math.abs(game.stakeAmount)) : '',
+    note: game.note ?? '',
+    rounds: [...game.rounds].sort((left, right) => left.orderIndex - right.orderIndex),
+    firstRoundSchlagSeat: game.firstRoundSchlagSeat ?? '',
+    firstRoundTrumpfSeat: game.firstRoundTrumpfSeat ?? '',
+  };
+}
+
+export function NewGamePage({
+  onSaveGame,
+  initialGame = null,
+  currentUsername = null,
+  currentUserId = null,
+  onCancelEdit,
+}: NewGamePageProps) {
+  const [draft, setDraft] = useState<LiveGameDraft>(() => createInitialDraft(currentUsername));
   const [hasStarted, setHasStarted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (initialGame) {
+      setDraft(createDraftFromGame(initialGame, currentUsername));
+      setHasStarted(true);
+      setError(null);
+      return;
+    }
+
+    setDraft((current) => ({
+      ...current,
+      teamAPlayers: [currentUsername ?? current.teamAPlayers[0], current.teamAPlayers[1]],
+    }));
+  }, [initialGame, currentUsername]);
 
   const totals = useMemo(() => calculateTotals(draft.rounds), [draft.rounds]);
   const winner = useMemo(() => getWinner(draft.rounds, draft.targetScore), [draft.rounds, draft.targetScore]);
@@ -38,8 +81,13 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
     () => getGestrichenState(draft.rounds, draft.targetScore),
     [draft.rounds, draft.targetScore],
   );
+  const isEditing = initialGame !== null;
 
   function updatePlayer(team: TeamId, index: 0 | 1, value: string) {
+    if (team === TEAM_A && index === 0 && currentUsername) {
+      return;
+    }
+
     setDraft((current) => {
       if (team === TEAM_A) {
         const next = [...current.teamAPlayers] as [string, string];
@@ -60,6 +108,16 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
       return;
     }
 
+    if ((draft.firstRoundSchlagSeat && !draft.firstRoundTrumpfSeat) || (!draft.firstRoundSchlagSeat && draft.firstRoundTrumpfSeat)) {
+      setError('Bitte entweder Schlag und Trumpf beide auswaehlen oder beide leer lassen.');
+      return;
+    }
+
+    if (draft.firstRoundSchlagSeat && draft.firstRoundSchlagSeat === draft.firstRoundTrumpfSeat) {
+      setError('Schlag und Trumpf koennen nicht dieselbe Person sein.');
+      return;
+    }
+
     setError(null);
     setHasStarted(true);
   }
@@ -71,19 +129,24 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
       pointsAwarded,
       type,
       createdAt: new Date().toISOString(),
+      orderIndex: draft.rounds.length + 1,
     };
 
     setDraft((current) => ({ ...current, rounds: [...current.rounds, round] }));
   }
 
   function undoLastRound() {
-    setDraft((current) => ({ ...current, rounds: current.rounds.slice(0, -1) }));
+    setDraft((current) => ({
+      ...current,
+      rounds: current.rounds.slice(0, -1).map((round, index) => ({ ...round, orderIndex: index + 1 })),
+    }));
   }
 
   function resetGame() {
-    setDraft(initialDraft);
+    setDraft(createInitialDraft(currentUsername));
     setHasStarted(false);
     setError(null);
+    onCancelEdit?.();
   }
 
   async function saveFinishedGame() {
@@ -95,7 +158,7 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
       draft.stakeAmountText.trim() === '' ? undefined : Number.parseFloat(draft.stakeAmountText.replace(',', '.'));
 
     if (draft.stakeAmountText.trim() !== '' && Number.isNaN(rawStakeAmount)) {
-      setError('Der Einsatz muss eine Zahl sein, z. B. 5 oder -2.50.');
+      setError('Der Einsatz muss eine Zahl sein, z. B. 5 oder 2.50.');
       return;
     }
 
@@ -107,16 +170,19 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
         : undefined;
 
     const game: Game = {
-      id: crypto.randomUUID(),
-      playedAt: new Date().toISOString(),
+      id: draft.gameId ?? crypto.randomUUID(),
+      playedAt: initialGame?.playedAt ?? new Date().toISOString(),
       targetScore: draft.targetScore,
-      teamA: { id: TEAM_A, name: 'Dein Team', players: draft.teamAPlayers },
+      teamA: { id: TEAM_A, name: 'Dein Team', players: [currentUsername ?? draft.teamAPlayers[0], draft.teamAPlayers[1]] },
       teamB: { id: TEAM_B, name: 'Gegner', players: draft.teamBPlayers },
-      rounds: draft.rounds,
+      rounds: draft.rounds.map((round, index) => ({ ...round, orderIndex: index + 1 })),
       finalTotals: totals,
       winnerTeam: winner,
       stakeAmount,
       note: draft.note.trim() || undefined,
+      teamAPlayer1ProfileId: currentUserId ?? undefined,
+      firstRoundSchlagSeat: draft.firstRoundSchlagSeat || undefined,
+      firstRoundTrumpfSeat: draft.firstRoundTrumpfSeat || undefined,
     };
 
     setIsSaving(true);
@@ -132,21 +198,24 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
     }
   }
 
+  const seatOptions = buildSeatOptions(draft, currentUsername);
+
   return (
     <section className="page">
       <div className="hero-card">
-        <p className="eyebrow">Südtiroler Wattblock</p>
-        <h1>Spiel mitschreiben, speichern und später sauber auswerten.</h1>
+        <p className="eyebrow">Suedtiroler Wattblock</p>
+        <h1>{isEditing ? 'Gespeichertes Spiel bearbeiten.' : 'Spiel mitschreiben, speichern und spaeter sauber auswerten.'}</h1>
         <p className="hero-copy">
-          Dein Team ist immer links. Du startest schnell mit vier Namen, schreibst die Runden wie auf Papier mit und
-          siehst danach sofort deine Statistik und den Geldstand.
+          {currentUsername
+            ? `Du spielst als ${currentUsername} immer auf Position 1 in deinem Team.`
+            : 'Ohne Login kannst du lokal spielen. Mit Login wird Position 1 automatisch dein Benutzername.'}
         </p>
       </div>
 
       {!hasStarted ? (
         <form className="panel stack" onSubmit={startGame}>
           <div className="section-heading">
-            <h2>Neues Spiel</h2>
+            <h2>{isEditing ? 'Spiel bearbeiten' : 'Neues Spiel'}</h2>
             <p>Bis 11, 15 oder 18 spielen, dann direkt am Tisch mitschreiben.</p>
           </div>
 
@@ -171,11 +240,11 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
             </label>
 
             <label className="field">
-              <span>Geldstand aus deiner Sicht</span>
+              <span>Einsatz</span>
               <input
                 type="text"
                 inputMode="decimal"
-                placeholder="z. B. 5 oder -3.50"
+                placeholder="z. B. 5"
                 value={draft.stakeAmountText}
                 onChange={(event) => setDraft((current) => ({ ...current, stakeAmountText: event.target.value }))}
               />
@@ -189,9 +258,10 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
                 <span>Spieler 1</span>
                 <input
                   type="text"
-                  placeholder="Vorname"
-                  value={draft.teamAPlayers[0]}
+                  value={currentUsername ?? draft.teamAPlayers[0]}
                   onChange={(event) => updatePlayer(TEAM_A, 0, event.target.value)}
+                  readOnly={Boolean(currentUsername)}
+                  className={currentUsername ? 'readonly-input' : ''}
                 />
               </label>
               <label className="field">
@@ -228,6 +298,42 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
             </div>
           </div>
 
+          <div className="grid two">
+            <label className="field">
+              <span>Schlag in Runde 1 (optional)</span>
+              <select
+                value={draft.firstRoundSchlagSeat}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, firstRoundSchlagSeat: event.target.value as PlayerSeat | '' }))
+                }
+              >
+                <option value="">Nicht erfassen</option>
+                {seatOptions.map((option) => (
+                  <option key={option.seat} value={option.seat}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field">
+              <span>Trumpf in Runde 1 (optional)</span>
+              <select
+                value={draft.firstRoundTrumpfSeat}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, firstRoundTrumpfSeat: event.target.value as PlayerSeat | '' }))
+                }
+              >
+                <option value="">Nicht erfassen</option>
+                {seatOptions.map((option) => (
+                  <option key={option.seat} value={option.seat}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
           <label className="field">
             <span>Notiz zum Spiel</span>
             <textarea
@@ -240,27 +346,30 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
 
           {error ? <p className="error-text">{error}</p> : null}
 
-          {saveDisabled ? <p className="restriction-copy">Zum Speichern bitte zuerst per Magic Link anmelden.</p> : null}
-
-          <button className="primary-button" type="submit" disabled={saveDisabled}>
-            Wattblock starten
-          </button>
+          <div className="live-actions">
+            <button className="primary-button" type="submit">
+              Wattblock starten
+            </button>
+            {isEditing ? (
+              <button className="ghost-button" type="button" onClick={resetGame}>
+                Bearbeitung abbrechen
+              </button>
+            ) : null}
+          </div>
         </form>
       ) : (
         <div className="stack">
           <div className="panel live-header">
             <div>
-              <p className="eyebrow">Live-Spiel</p>
-              <h2>
-                Bis {draft.targetScore} Punkte
-              </h2>
+              <p className="eyebrow">{isEditing ? 'Bearbeitung' : 'Live-Spiel'}</p>
+              <h2>Bis {draft.targetScore} Punkte</h2>
             </div>
             <div className="live-actions">
               <button className="secondary-button" type="button" onClick={undoLastRound} disabled={draft.rounds.length === 0}>
-                Letzte Runde löschen
+                Letzte Runde loeschen
               </button>
               <button className="ghost-button" type="button" onClick={resetGame}>
-                Abbrechen
+                {isEditing ? 'Bearbeitung abbrechen' : 'Abbrechen'}
               </button>
             </div>
           </div>
@@ -268,7 +377,7 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
           <div className="score-columns">
             <ScoreColumn
               label="Dein Team"
-              players={draft.teamAPlayers}
+              players={[currentUsername ?? draft.teamAPlayers[0], draft.teamAPlayers[1]]}
               team={TEAM_A}
               rounds={draft.rounds}
               total={totals.A}
@@ -311,7 +420,7 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
               </p>
               {error ? <p className="error-text">{error}</p> : null}
               <div className="live-actions">
-                <button className="primary-button" type="button" onClick={saveFinishedGame} disabled={isSaving || saveDisabled}>
+                <button className="primary-button" type="button" onClick={saveFinishedGame} disabled={isSaving}>
                   {isSaving ? 'Speichert...' : 'Spiel speichern'}
                 </button>
                 <button className="secondary-button" type="button" onClick={undoLastRound}>
@@ -324,6 +433,17 @@ export function NewGamePage({ onSaveGame, saveDisabled = false }: NewGamePagePro
       )}
     </section>
   );
+}
+
+function buildSeatOptions(draft: LiveGameDraft, currentUsername: string | null): Array<{ seat: PlayerSeat; label: string }> {
+  const labelBySeat: Record<PlayerSeat, string> = {
+    A1: `Du (${(currentUsername ?? draft.teamAPlayers[0]) || 'Spieler 1'})`,
+    B1: `Gegner 1 (${draft.teamBPlayers[0] || 'offen'})`,
+    A2: `Partner (${draft.teamAPlayers[1] || 'offen'})`,
+    B2: `Gegner 2 (${draft.teamBPlayers[1] || 'offen'})`,
+  };
+
+  return PLAYER_SEAT_ORDER.map((seat) => ({ seat, label: labelBySeat[seat] }));
 }
 
 interface RoundButtonsProps {

@@ -5,12 +5,15 @@ import type { Game } from '../types';
 
 interface SavedGamesPageProps {
   games: Game[];
+  onEditGame: (game: Game) => void;
+  onDeleteGame: (gameId: string) => Promise<void>;
 }
 
 type Filter = 'all' | 'wins' | 'losses';
 
-export function SavedGamesPage({ games }: SavedGamesPageProps) {
+export function SavedGamesPage({ games, onEditGame, onDeleteGame }: SavedGamesPageProps) {
   const [filter, setFilter] = useState<Filter>('all');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const filteredGames = useMemo(() => {
     if (filter === 'wins') {
@@ -24,11 +27,20 @@ export function SavedGamesPage({ games }: SavedGamesPageProps) {
     return games;
   }, [filter, games]);
 
+  async function handleDelete(gameId: string) {
+    setDeletingId(gameId);
+    try {
+      await onDeleteGame(gameId);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <section className="page stack">
       <div className="section-heading">
         <h1>Gespeicherte Spiele</h1>
-        <p>Deine letzten Watten-Abende mit Endstand, Gegnern und Geldresultat.</p>
+        <p>Hier kannst du gespeicherte Matches nachtraeglich bearbeiten oder loeschen.</p>
       </div>
 
       <div className="filter-row">
@@ -75,7 +87,27 @@ export function SavedGamesPage({ games }: SavedGamesPageProps) {
                   <span>{typeof signedStake === 'number' ? formatMoney(signedStake) : 'Kein Einsatz notiert'}</span>
                 </div>
 
+                {game.firstRoundSchlagSeat && game.firstRoundTrumpfSeat ? (
+                  <p className="saved-game-note">
+                    Runde 1: Schlag {game.firstRoundSchlagSeat}, Trumpf {game.firstRoundTrumpfSeat}
+                  </p>
+                ) : null}
+
                 {game.note ? <p className="saved-game-note">{game.note}</p> : null}
+
+                <div className="saved-game-actions">
+                  <button className="secondary-button" type="button" onClick={() => onEditGame(game)}>
+                    Bearbeiten
+                  </button>
+                  <button
+                    className="ghost-button destructive-button"
+                    type="button"
+                    onClick={() => handleDelete(game.id)}
+                    disabled={deletingId === game.id}
+                  >
+                    {deletingId === game.id ? 'Loescht...' : 'Loeschen'}
+                  </button>
+                </div>
               </article>
             );
           })}
