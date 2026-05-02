@@ -263,10 +263,6 @@ function App() {
             ) : (
               <>
                 <h2>{authMode === 'sign-in' ? 'Einloggen' : 'Konto erstellen'}</h2>
-                <p>
-                  Auf dem Handy ist das jetzt ein normales Login mit E-Mail und Passwort. Gastmodus bleibt trotzdem
-                  moeglich.
-                </p>
               </>
             )}
           </div>
@@ -301,7 +297,7 @@ function App() {
                   <span>Benutzername</span>
                   <input
                     type="text"
-                    placeholder="z. B. florian"
+                    placeholder="dein Name im Spiel"
                     value={authUsername}
                     onChange={(event) => setAuthUsername(event.target.value)}
                     required
