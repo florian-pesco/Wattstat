@@ -32,6 +32,7 @@ function App() {
   const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
+  const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -51,6 +52,7 @@ function App() {
       }
 
       setSession(data.session ?? null);
+      setAuthOpen(false);
       setAuthLoading(false);
     });
 
@@ -61,6 +63,7 @@ function App() {
       setAuthLoading(false);
       setAuthError(null);
       setAuthNotice(null);
+      setAuthOpen(false);
     });
 
     return () => {
@@ -196,6 +199,7 @@ function App() {
 
       if (data.session) {
         setAuthNotice('Konto erstellt. Du bist jetzt angemeldet.');
+        setAuthOpen(false);
       } else {
         setAuthNotice('Konto erstellt. Bitte bestaetige zuerst deine E-Mail und melde dich dann an.');
         setAuthMode('sign-in');
@@ -215,6 +219,7 @@ function App() {
     }
 
     setAuthNotice('Erfolgreich angemeldet.');
+    setAuthOpen(false);
   }
 
   async function handleSignOut() {
@@ -231,6 +236,7 @@ function App() {
     setProfile(null);
     setEditingGame(null);
     setGames(loadLocalGames());
+    setAuthOpen(false);
   }
 
   function handleCancelEdit() {
@@ -239,107 +245,117 @@ function App() {
 
   return (
     <div className="app-shell">
-      <header className="app-header">
-        <div>
+      <header className="app-header compact-header">
+        <div className="brand-block">
           <p className="eyebrow">Wattstat</p>
-          <h1>Watten fuer den Tisch, die Liste und die Kasse.</h1>
+          <h1>Dein Wattblock. Deine Statistik.</h1>
         </div>
-        <p className="header-copy">
-          {session
-            ? 'Deine Spiele werden mit deinem Konto synchronisiert und bleiben auf allen Geraeten verfuegbar.'
-            : 'Du kannst auch ohne Login lokal spielen. Mit Konto werden Spiele und Statistiken synchronisiert.'}
-        </p>
-      </header>
 
-      {isSupabaseConfigured ? (
-        <section className="panel auth-panel">
-          <div className="auth-panel-copy">
-            <p className="eyebrow">Konto</p>
-            {session && profile ? (
-              <>
-                <h2>Angemeldet als {profile.username}</h2>
-                <p>{profile.email}</p>
-              </>
-            ) : (
-              <>
-                <h2>{authMode === 'sign-in' ? 'Einloggen' : 'Konto erstellen'}</h2>
-              </>
-            )}
-          </div>
-
-          {session ? (
-            <div className="auth-actions">
-              <button className="secondary-button" type="button" onClick={handleSignOut}>
+        <div className="account-shell">
+          {session && profile ? (
+            <div className="account-chip">
+              <div>
+                <strong>{profile.username}</strong>
+                <span>angemeldet</span>
+              </div>
+              <button className="ghost-button" type="button" onClick={handleSignOut}>
                 Abmelden
               </button>
             </div>
-          ) : (
-            <form className="auth-form" onSubmit={handleAuthSubmit}>
-              <div className="auth-mode-switch">
-                <button
-                  className={authMode === 'sign-in' ? 'filter-button active' : 'filter-button'}
-                  type="button"
-                  onClick={() => setAuthMode('sign-in')}
-                >
-                  Login
-                </button>
-                <button
-                  className={authMode === 'sign-up' ? 'filter-button active' : 'filter-button'}
-                  type="button"
-                  onClick={() => setAuthMode('sign-up')}
-                >
-                  Sign up
-                </button>
-              </div>
-
-              {authMode === 'sign-up' ? (
-                <label className="field">
-                  <span>Benutzername</span>
-                  <input
-                    type="text"
-                    placeholder="dein Name im Spiel"
-                    value={authUsername}
-                    onChange={(event) => setAuthUsername(event.target.value)}
-                    required
-                  />
-                </label>
-              ) : null}
-
-              <label className="field">
-                <span>E-Mail</span>
-                <input
-                  type="email"
-                  placeholder="du@example.com"
-                  value={authEmail}
-                  onChange={(event) => setAuthEmail(event.target.value)}
-                  required
-                />
-              </label>
-
-              <label className="field">
-                <span>Passwort</span>
-                <input
-                  type="password"
-                  placeholder="Mindestens 6 Zeichen"
-                  value={authPassword}
-                  onChange={(event) => setAuthPassword(event.target.value)}
-                  required
-                />
-              </label>
-
-              <button className="primary-button" type="submit" disabled={authLoading}>
-                {authLoading ? 'Prueft Session...' : authMode === 'sign-in' ? 'Einloggen' : 'Konto erstellen'}
+          ) : isSupabaseConfigured ? (
+            <>
+              <button
+                className={authOpen ? 'secondary-button account-toggle active' : 'secondary-button account-toggle'}
+                type="button"
+                onClick={() => setAuthOpen((open) => !open)}
+                aria-expanded={authOpen}
+              >
+                Konto
               </button>
-            </form>
-          )}
+              {authOpen ? (
+                <>
+                  <button className="auth-backdrop" type="button" aria-label="Konto schliessen" onClick={() => setAuthOpen(false)} />
+                  <section className="panel auth-popover" role="dialog" aria-modal="true">
+                    <div className="auth-popover-head">
+                      <div>
+                        <p className="eyebrow">Konto</p>
+                        <h2>{authMode === 'sign-in' ? 'Einloggen' : 'Neu dabei'}</h2>
+                      </div>
+                      <button className="ghost-button auth-close" type="button" onClick={() => setAuthOpen(false)}>
+                        Schliessen
+                      </button>
+                    </div>
 
-          {authNotice ? <p className="success-text">{authNotice}</p> : null}
-          {authError ? <p className="error-text">{authError}</p> : null}
-        </section>
-      ) : null}
+                    <div className="auth-mode-switch">
+                      <button
+                        className={authMode === 'sign-in' ? 'filter-button active' : 'filter-button'}
+                        type="button"
+                        onClick={() => setAuthMode('sign-in')}
+                      >
+                        Login
+                      </button>
+                      <button
+                        className={authMode === 'sign-up' ? 'filter-button active' : 'filter-button'}
+                        type="button"
+                        onClick={() => setAuthMode('sign-up')}
+                      >
+                        Sign up
+                      </button>
+                    </div>
+
+                    <form className="auth-form compact-auth-form" onSubmit={handleAuthSubmit}>
+                      {authMode === 'sign-up' ? (
+                        <label className="field slim-field">
+                          <span>Benutzername</span>
+                          <input
+                            type="text"
+                            placeholder="dein Name im Spiel"
+                            value={authUsername}
+                            onChange={(event) => setAuthUsername(event.target.value)}
+                            required
+                          />
+                        </label>
+                      ) : null}
+
+                      <label className="field slim-field">
+                        <span>E-Mail</span>
+                        <input
+                          type="email"
+                          placeholder="du@example.com"
+                          value={authEmail}
+                          onChange={(event) => setAuthEmail(event.target.value)}
+                          required
+                        />
+                      </label>
+
+                      <label className="field slim-field">
+                        <span>Passwort</span>
+                        <input
+                          type="password"
+                          placeholder="Mindestens 6 Zeichen"
+                          value={authPassword}
+                          onChange={(event) => setAuthPassword(event.target.value)}
+                          required
+                        />
+                      </label>
+
+                      <button className="primary-button" type="submit" disabled={authLoading}>
+                        {authLoading ? 'Prueft...' : authMode === 'sign-in' ? 'Einloggen' : 'Konto erstellen'}
+                      </button>
+                    </form>
+
+                    {authNotice ? <p className="success-text">{authNotice}</p> : null}
+                    {authError ? <p className="error-text">{authError}</p> : null}
+                  </section>
+                </>
+              ) : null}
+            </>
+          ) : null}
+        </div>
+      </header>
 
       {gamesLoading ? (
-        <section className="panel">
+        <section className="panel compact-info-card">
           <p>Spiele werden geladen...</p>
         </section>
       ) : null}
