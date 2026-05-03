@@ -29,7 +29,6 @@ export function StatisticsPage({ games }: StatisticsPageProps) {
     <section className="page stack">
       <div className="section-heading">
         <h1>Statistik</h1>
-        <p>Mit Schlag und Trumpf in Runde 1 lassen sich jetzt auch Blind-Runden auswerten.</p>
       </div>
 
       <div className="stat-grid">

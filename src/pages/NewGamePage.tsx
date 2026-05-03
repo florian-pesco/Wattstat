@@ -202,15 +202,6 @@ export function NewGamePage({
 
   return (
     <section className="page">
-      <div className="hero-card">
-        <p className="eyebrow">Suedtiroler Wattblock</p>
-        <h1>{isEditing ? 'Gespeichertes Spiel bearbeiten.' : 'Spiel mitschreiben, speichern und spaeter sauber auswerten.'}</h1>
-        <p className="hero-copy">
-          {currentUsername
-            ? `Du spielst als ${currentUsername} immer auf Position 1 in deinem Team.`
-            : 'Ohne Login kannst du lokal spielen. Mit Login wird Position 1 automatisch dein Benutzername.'}
-        </p>
-      </div>
 
       {!hasStarted ? (
         <form className="panel stack" onSubmit={startGame}>
