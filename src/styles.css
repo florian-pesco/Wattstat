@@ -241,14 +241,47 @@ button:disabled {
 
 .grid.two,
 .team-setup-grid,
-.score-columns,
-.round-controls,
+.round-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.round-controls .panel {
+  padding: 0.65rem;
+}
+
+.round-controls h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.round-button-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+}
+
+.round-button {
+  padding: 0.6rem 0.5rem;
+  font-size: 0.9rem;
+  min-height: auto;
+  background: rgba(243, 239, 234, 0.95);
+  color: #2e251f;
+}
+
 .stat-grid,
 .money-grid,
 .compact-player-grid,
 .compact-settings-row,
 .compact-optional-grid {
   display: grid;
+  gap: 0.75rem;
+}
+
+.score-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
 }
 
@@ -770,6 +803,54 @@ button:disabled {
 
 .empty-state {
   text-align: center;
+}
+
+.score-head {
+  display: grid;
+  gap: 0.4rem;
+  text-align: center;
+  margin-bottom: 0.8rem;
+}
+
+.score-badge {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 0.3rem;
+}
+
+.score-badge span {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #603719;
+  letter-spacing: -0.02em;
+}
+
+.score-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  text-align: center;
+}
+
+.score-column.gestrichen {
+  position: relative;
+  background: rgba(220, 180, 140, 0.15);
+}
+
+.score-column.gestrichen::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(196, 80, 60, 0.5);
+  transform: translateX(-50%);
+}
+
+.score-column.gestrichen .score-badge span {
+  position: relative;
 }
 
 @media (max-width: 719px) {

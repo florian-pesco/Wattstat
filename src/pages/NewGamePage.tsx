@@ -472,7 +472,7 @@ function RoundButtons({ label, team, onAddRound, gestrichenState }: RoundButtons
           </button>
         ))}
         <button className="round-button penalty-button" type="button" onClick={() => onAddRound(team, PENALTY_POINT_VALUE, 'penalty')}>
-          Strafpunkt {PENALTY_POINT_VALUE}
+          {PENALTY_POINT_VALUE}
         </button>
       </div>
     </div>
@@ -491,10 +491,17 @@ interface ScoreColumnProps {
 
 function ScoreColumn({ label, players, team, rounds, total, winner, gestrichenState }: ScoreColumnProps) {
   const entries = rounds.filter((round) => round.team === team);
-  const cumulativeEntries = entries.map((entry, index) => ({
-    ...entry,
-    totalAfterRound: entries.slice(0, index + 1).reduce((sum, current) => sum + current.pointsAwarded, 0),
-  }));
+  const cumulativeEntries = entries.map((entry, index) => {
+    // Count global round position
+    const globalRoundIndex = rounds.findIndex((r) => r.id === entry.id);
+    const totalAfterRound = entries.slice(0, index + 1).reduce((sum, current) => sum + current.pointsAwarded, 0);
+    
+    return {
+      ...entry,
+      globalRoundNumber: globalRoundIndex + 1,
+      totalAfterRound,
+    };
+  });
   const gestrichen = gestrichenState?.leader === team;
   const isWinner = winner === team;
 
@@ -510,17 +517,14 @@ function ScoreColumn({ label, players, team, rounds, total, winner, gestrichenSt
         </div>
       </div>
 
-      {gestrichen ? <div className="gestrichen-label">{gestrichenState.mode} gestrichen</div> : null}
-
-      <ol className="score-list" aria-label={`${label} Punkte`}>
+      <ul className="score-list" aria-label={`${label} Punkte`}>
         {entries.length === 0 ? <li className="score-empty">Noch kein Eintrag</li> : null}
         {cumulativeEntries.map((entry) => (
           <li key={entry.id} className={`score-entry ${entry.type === 'penalty' ? 'penalty-entry' : ''}`}>
-            <span>{entry.totalAfterRound}</span>
-            <small>{entry.type === 'penalty' ? `Strafe ${entry.pointsAwarded}` : `+${entry.pointsAwarded}`}</small>
+            {entry.globalRoundNumber}. {entry.type === 'penalty' ? `Strafe ${entry.pointsAwarded}` : `+${entry.pointsAwarded}`}
           </li>
         ))}
-      </ol>
+      </ul>
     </article>
   );
 }
