@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import {
   getGestrichenState,
@@ -11,6 +11,7 @@ import {
   calculateTotals,
   getWinner,
 } from '../lib/gameLogic';
+import { clearPersistedLiveGame, loadPersistedLiveGame, savePersistedLiveGame } from '../lib/storage';
 import type { Game, LiveGameDraft, PlayerSeat, RoundEntry, RoundType, TeamId } from '../types';
 
 interface NewGamePageProps {
@@ -63,17 +64,48 @@ export function NewGamePage({
 
   useEffect(() => {
     if (initialGame) {
-      setDraft(createDraftFromGame(initialGame, currentUsername));
-      setHasStarted(true);
+      const persistedLiveGame = loadPersistedLiveGame();
+      if (persistedLiveGame && persistedLiveGame.draft.gameId === initialGame.id) {
+        setDraft(persistedLiveGame.draft);
+        setHasStarted(persistedLiveGame.hasStarted);
+      } else {
+        setDraft(createDraftFromGame(initialGame, currentUsername));
+        setHasStarted(true);
+      }
       setError(null);
       return;
     }
 
-    setDraft((current) => ({
-      ...current,
-      teamAPlayers: [currentUsername ?? current.teamAPlayers[0], current.teamAPlayers[1]],
-    }));
+    const persistedLiveGame = loadPersistedLiveGame();
+    if (persistedLiveGame) {
+      setDraft({
+        ...persistedLiveGame.draft,
+        teamAPlayers: [currentUsername ?? persistedLiveGame.draft.teamAPlayers[0], persistedLiveGame.draft.teamAPlayers[1]],
+      });
+      setHasStarted(persistedLiveGame.hasStarted);
+      setError(null);
+      return;
+    }
+
+    setDraft(createInitialDraft(currentUsername));
+    setHasStarted(false);
   }, [initialGame, currentUsername]);
+
+  const isInitialSave = useRef(true);
+
+  useEffect(() => {
+    if (isInitialSave.current) {
+      isInitialSave.current = false;
+      return;
+    }
+    savePersistedLiveGame({
+      draft: {
+        ...draft,
+        teamAPlayers: [currentUsername ?? draft.teamAPlayers[0], draft.teamAPlayers[1]],
+      },
+      hasStarted,
+    });
+  }, [draft, hasStarted, currentUsername]);
 
   const totals = useMemo(() => calculateTotals(draft.rounds), [draft.rounds]);
   const winner = useMemo(() => getWinner(draft.rounds, draft.targetScore), [draft.rounds, draft.targetScore]);
@@ -143,6 +175,7 @@ export function NewGamePage({
   }
 
   function resetGame() {
+    clearPersistedLiveGame();
     setDraft(createInitialDraft(currentUsername));
     setHasStarted(false);
     setError(null);

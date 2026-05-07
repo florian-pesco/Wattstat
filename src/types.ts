@@ -56,6 +56,11 @@ export interface LiveGameDraft {
   firstRoundTrumpfSeat: PlayerSeat | '';
 }
 
+export interface PersistedLiveGame {
+  draft: LiveGameDraft;
+  hasStarted: boolean;
+}
+
 export interface MoneyResultSummary {
   total: number;
   average: number;
