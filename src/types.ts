@@ -86,5 +86,12 @@ export interface StatsSummary {
   blindRoundsTracked: number;
   blindRoundsWon: number;
   blindWinRate: number;
+  schlagRoundsTracked: number;
+  schlagRoundsWon: number;
+  schlagWinRate: number;
+  trumpfRoundsTracked: number;
+  trumpfRoundsWon: number;
+  trumpfWinRate: number;
+  roundPointsDistribution: Record<number, number>;
   recentGames: Game[];
 }

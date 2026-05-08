@@ -148,6 +148,11 @@ export function summarizeStats(games: Game[]): StatsSummary {
 
   let blindRoundsTracked = 0;
   let blindRoundsWon = 0;
+  let schlagRoundsTracked = 0;
+  let schlagRoundsWon = 0;
+  let trumpfRoundsTracked = 0;
+  let trumpfRoundsWon = 0;
+  const roundPointsDistribution: Record<number, number> = { 2: 0, 3: 0, 4: 0, 5: 0 };
 
   for (const game of sortedGames) {
     game.rounds.forEach((round, index) => {
@@ -157,6 +162,21 @@ export function summarizeStats(games: Game[]): StatsSummary {
         if (round.team === TEAM_A) {
           blindRoundsWon += 1;
         }
+      } else if (role === 'schlag') {
+        schlagRoundsTracked += 1;
+        if (round.team === TEAM_A) {
+          schlagRoundsWon += 1;
+        }
+      } else if (role === 'trumpf') {
+        trumpfRoundsTracked += 1;
+        if (round.team === TEAM_A) {
+          trumpfRoundsWon += 1;
+        }
+      }
+
+      // Count round points distribution
+      if (round.pointsAwarded in roundPointsDistribution) {
+        roundPointsDistribution[round.pointsAwarded] += 1;
       }
     });
   }
@@ -184,6 +204,13 @@ export function summarizeStats(games: Game[]): StatsSummary {
     blindRoundsTracked,
     blindRoundsWon,
     blindWinRate: blindRoundsTracked > 0 ? blindRoundsWon / blindRoundsTracked : 0,
+    schlagRoundsTracked,
+    schlagRoundsWon,
+    schlagWinRate: schlagRoundsTracked > 0 ? schlagRoundsWon / schlagRoundsTracked : 0,
+    trumpfRoundsTracked,
+    trumpfRoundsWon,
+    trumpfWinRate: trumpfRoundsTracked > 0 ? trumpfRoundsWon / trumpfRoundsTracked : 0,
+    roundPointsDistribution,
     recentGames: sortedGames.slice(0, 10),
   };
 }

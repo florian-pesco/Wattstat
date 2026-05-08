@@ -131,4 +131,27 @@ describe('gameLogic', () => {
     expect(stats.blindRoundsWon).toBe(1);
     expect(stats.blindWinRate).toBe(0.5);
   });
+
+  it('tracks schlag and trumpf round win rate and point distribution', () => {
+    const stats = summarizeStats([
+      game({
+        firstRoundSchlagSeat: 'A1',
+        firstRoundTrumpfSeat: 'B2',
+        rounds: [
+          { ...round('A', 2), orderIndex: 1 },
+          { ...round('A', 3), orderIndex: 2 },
+          { ...round('B', 4), orderIndex: 3 },
+          { ...round('A', 2), orderIndex: 4 },
+        ],
+      }),
+    ]);
+
+    expect(stats.schlagRoundsTracked).toBe(1);
+    expect(stats.schlagRoundsWon).toBe(1);
+    expect(stats.schlagWinRate).toBe(1);
+    expect(stats.trumpfRoundsTracked).toBe(1);
+    expect(stats.trumpfRoundsWon).toBe(1);
+    expect(stats.trumpfWinRate).toBe(1);
+    expect(stats.roundPointsDistribution).toEqual({ 2: 2, 3: 1, 4: 1, 5: 0 });
+  });
 });
